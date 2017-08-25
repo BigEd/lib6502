@@ -38,6 +38,8 @@ static char *program= 0;
 
 static byte bank[0x10][0x4000];
 
+static int faketime= 0;
+
 
 void fail(const char *fmt, ...)
 {
@@ -100,6 +102,38 @@ int osword(M6502 *mpu, word address, byte data)
 	break;
       }
 
+    case 0x01: /* read system time */
+      {
+	/*	char state[64];
+	M6502_dump(mpu, state);
+	fflush(stdout);
+	fprintf(stderr, "\nOSWORD %s\n", state);
+	fprintf(stderr, "%d\n", faketime);
+	fprintf(stderr, "%08x\n", mpu->memory);
+	fprintf(stderr, "%08x\n", params);
+	fprintf(stderr, "%02x\n", *params);
+	fprintf(stderr, "%02x\n", params[0]);
+
+	*/
+	params[0] = (char)(++faketime);
+	params[1] = (char)(faketime>>8);
+	params[2] = (char)(faketime>>16);
+
+	/*
+	fprintf(stderr, "%d\n", faketime);
+	fprintf(stderr, "%02x\n", *params);
+	fprintf(stderr, "%02x\n", params[0]);
+	*/
+
+	break;
+      }
+
+    case 0x05: /* read memory for i/o processor - probably the command line */
+      {
+	mpu->registers->a= 0x0d;
+	break;
+      }
+
     default:
       {
 	char state[64];
@@ -124,7 +158,8 @@ int osbyte(M6502 *mpu, word address, byte data)
       break;
 
     case 0x7E:	/* acknowledge detection of escape condition */
-      return 1;
+      /* return 1; bugfix for BBC Basic error handling ed spittles */
+      mpu->registers->x= 0x00;
       break;
 
     case 0x82:	/* read machine higher order address */
@@ -143,6 +178,9 @@ int osbyte(M6502 *mpu, word address, byte data)
       break;
 
     case 0x89:	/* motor control */
+      break;
+
+    case 0xBB:	/* read/write BASIC's slot number */
       break;
 
     case 0xDA:	/* read/write number of items in vdu queue (stored at 0x026A) */
@@ -173,7 +211,7 @@ int oscli(M6502 *mpu, word address, byte data)
   while (13 != *params)
     *ptr++= *params++;
   *ptr= '\0';
-  system(command);
+  int dummy=system(command);
   rts;
 }
 
@@ -458,6 +496,7 @@ static int doDisassemble(int argc, char **argv, M6502 *mpu)
   return 2;
 }
 
+int tracing=0;
 
 int main(int argc, char **argv)
 {
@@ -488,6 +527,7 @@ int main(int argc, char **argv)
 	else if (!strcmp(*argv, "-P"))	n= doPtrap(argc, argv, mpu);
 	else if (!strcmp(*argv, "-R"))	n= doRST(argc, argv, mpu);
 	else if (!strcmp(*argv, "-s"))	n= doSave(argc, argv, mpu);
+	else if (!strcmp(*argv, "-t"))	tracing=1;
 	else if (!strcmp(*argv, "-v"))	n= doVersion(argc, argv, mpu);
 	else if (!strcmp(*argv, "-X"))	n= doXtrap(argc, argv, mpu);
 	else if (!strcmp(*argv, "-x"))	exit(0);
